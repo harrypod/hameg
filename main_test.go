@@ -69,17 +69,3 @@ func TestPreSplit(t *testing.T) {
 	assertEqual(t, Aval, "0.01", "Failed to split Amps")
 	assertEqual(t, Wval, "0", "Failed to split Watts")
 }
-
-
-
-// func TestNoData (t *testing.T) { 
-// 	var allData="NODATA"
-// 	hamegDataArr := strings.Split(allData, " ")	
-
-	
-// }
-// func compareStr(expected string, got string) { 
-// 	if expected!=got { 
-// 		t.Error("Failed to split data, got:",got, " instead of expected:",expected)
-// 	}
-// }
