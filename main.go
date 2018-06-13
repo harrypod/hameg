@@ -49,9 +49,10 @@ const (
 	cmdGetVal 		= "\x56\x41\x4C\x3F\x0D" 						//VAL?<CR>			
 )
 
+
+
 func main() {	
-	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-	
+	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)	
 	var osPtr = flag.Int("os", 0, "Operating System, 0=Linux,1=Windows")	
 	var serialInterfacePtr = flag.Int("interface", 0, "COM or TTY of Interface")			// AKA INTERFACE
 	var logPtr = flag.Int("log", 0, "Log level, 0=Off,1=Error,2=Info,3=Warning,4=Trace")	
@@ -88,29 +89,33 @@ func main() {
 	defer port.Close()				// close port on exit main
 	
 	allData := transmitHandle(port,[]byte(cmdGetVal))	// send cmd and return data 
-	hamegDataArr := strings.Split(allData, " ")			// put returned data into array	
 
-	// splitMetric further handles the string result
-	nHamData := &HamegData{Volts:splitMetric(hamegDataArr[0]),Amps:splitMetric(hamegDataArr[1]),Watts:splitMetric(hamegDataArr[2])}
-
+	if(allData != "NODATA") { 		
+		nHamData := TransformData(allData)
+		e, err := json.Marshal(nHamData)	//JSON results
+		if err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println(string(e))				//output json to stdout
+	}else { 
+		Error.Println("No data received")
+		fmt.Println("No data received")
+	}
 	
-	e, err := json.Marshal(nHamData)	//JSON results
-    if err != nil {
-        Error.Println(err)
-        os.Exit(1)
-    }
-    fmt.Println(string(e))				//output json to stdout
-	
-	
-	Trace.Println("VOLTS=",splitMetric(hamegDataArr[0])) // Trace print to screen data
-	Trace.Println("AMPS=",splitMetric(hamegDataArr[1]))
-	Trace.Println("WATTS=",splitMetric(hamegDataArr[2]))
-
 	elapsed := time.Since(start).String()
 	Info.Println("Time Elapsed:",elapsed)	
 }
 
-func splitMetric(in string)string { 					// handle format of data provided by Hameg
+//TransformData breaks down the string, first pass into 3 metrics
+func TransformData(allData string) *HamegData{ 
+	hamegDataArr := strings.Split(allData, " ")			// put returned data into array		
+	nHamData := &HamegData{Volts:SplitMetric(hamegDataArr[0]),Amps:SplitMetric(hamegDataArr[1]),Watts:SplitMetric(hamegDataArr[2])}
+	return nHamData
+}
+
+//SplitMetric removes the metric element ofthe string and maintains the value
+func SplitMetric(in string)string { 					// handle format of data provided by Hameg
 	var valuesArr = strings.Split(in,"=") 				// split data by '='
 	var activeValue = valuesArr[1]						// remove E+0 from each field
 	var removeEPlus = activeValue[:len(activeValue)-3]
@@ -145,7 +150,6 @@ func stringToASCII (s[] string) string {
 	return convertInttoASCII(intArr)			// pass int array and return ascii in single string
 
 }
-
 
 func transmitHandle (sport serial.Port,trx []byte)string {				// send command and process data	
 	Trace.Println("TRX:",trx)
@@ -186,15 +190,19 @@ func transmitHandle (sport serial.Port,trx []byte)string {				// send command an
 			}
 		}		
 	}
-	if buffer.String() != "" {  								// got a buffer of data		
-		var packetOut = buffer.String()			
-		packetBytes := strings.Split(packetOut, ",")			// convert and split string into string array	
-
-		return stripExtraChars(packetBytes)						//return data after removing <CR>
+	if buffer.String() != "" {  								// got a buffer of data				
+		packetBytes := bufferToStringArr(buffer.String())	
+		return convertHexToAscii(packetBytes)						//return data after removing <CR>
 	}	
 	return "NODATA"				// bad handle - no node exists
 }
-func stripExtraChars(fPacket []string) string { 
+func bufferToStringArr(bufferString string) []string { 		
+	packetStrArr := strings.Split(bufferString, ",")			// convert and split string into string array	
+	return packetStrArr
+}
+
+
+func convertHexToAscii(fPacket []string) string { 	// convert array of hex to readable string
 	var data = fPacket[:len(fPacket)-1]				// remove <CR>
 	var dataStr = stringToASCII(data)
 	return dataStr
@@ -202,4 +210,9 @@ func stripExtraChars(fPacket []string) string {
 
 func delimitBytes(a []byte, delim string) string {				
     return strings.Trim(strings.Replace(fmt.Sprint(a), " ", delim, -1), "[]")				// CONVERT BYTE ARRAY to String Delimited    
+}
+
+//Sum is for testing only
+func Sum(x int, y int) int {
+    return x + y
 }
